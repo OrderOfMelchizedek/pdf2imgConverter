@@ -81,68 +81,103 @@ def create_grid_image(images, start_idx, count):
     
     # If we have only one image, just return it
     if len(img_set) == 1:
-        return img_set[0].copy()
-    
-    # Handle cases with 2-3 images (non-grid layouts)
-    if len(img_set) < 4:
-        if len(img_set) == 2:
-            # For 2 images, create a horizontal layout instead
-            return create_horizontal_image(images, start_idx, 2)
-        elif len(img_set) == 3:
-            # For 3 images, create a custom layout (2 on top, 1 on bottom)
-            # First calculate dimensions
-            widths, heights = zip(*(img.size for img in img_set))
-            
-            # For the top row (first 2 images)
-            top_width = widths[0] + widths[1]
-            top_height = max(heights[0], heights[1])
-            
-            # Total dimensions
-            total_width = max(top_width, widths[2])
-            total_height = top_height + heights[2]
-            
-            # Create the combined image
-            combined = Image.new('RGB', (total_width, total_height), color='white')
-            
-            # Paste the images
-            combined.paste(img_set[0], (0, 0))
-            combined.paste(img_set[1], (widths[0], 0))
-            combined.paste(img_set[2], (0, top_height))
-            
-            return combined
-    
+        # If we allow single image pass-through, we might need to pad it to 2x2 if grid is selected.
+        # For now, this remains, but the task implies grid forces 2x2.
+        # This could be revisited: if grid is selected and 1 image, should it be 1 image or 1 image in a 2x2 grid?
+        # Based on current task, if len(img_set) is 1, it will be padded to 4.
+        # So, this specific early return for len(img_set) == 1 might be redundant if padding always occurs.
+        # However, the problem description focuses on 2 and 3 images, so let's keep this for now.
+        # UPDATE: The problem statement implies that if less than 4 images, they should be padded.
+        # So, this len(img_set) == 1 check should also lead to padding.
+        # Let's remove this to ensure padding happens for 1, 2, or 3 images.
+        pass # This line will be removed by the next block.
+
     # Ensure we have exactly 4 images, pad with blank images if necessary
-    while len(img_set) < 4:
-        # Create a blank white image with the same dimensions as the first image
-        blank = Image.new('RGB', img_set[0].size, color='white')
-        img_set.append(blank)
+    # The problem states "Ensuring that the padding logic ... is always executed if the initial len(img_set) ... is less than 4"
+    # This means the conditions for 2 and 3 images should be removed, and this padding logic should handle it.
     
-    # Calculate dimensions for the combined image
-    widths, heights = zip(*(img.size for img in img_set))
-    max_width = max(widths[:2])  # Max width of first two images
-    max_width2 = max(widths[2:])  # Max width of last two images
-    max_height = max(heights[0], heights[2])  # Max height of first and third images
-    max_height2 = max(heights[1], heights[3])  # Max height of second and fourth images
+    # If img_set is empty, we can't get img_set[0].size. This shouldn't happen with valid PDFs.
+    # If it can happen, a default size for blank images would be needed.
+    # Assuming img_set will have at least one image if start_idx is valid.
+    # If images itself is empty, convert_from_path would likely raise an error or return [].
+    # If start_idx is beyond len(images), img_set will be empty.
+    # The line `img_set = images[start_idx:start_idx+min(count, len(images)-start_idx)]` handles this.
+    # If img_set is empty after slicing, we need a default size for blank images.
+    # For now, assume img_set is not empty if we reach here and need padding.
+    # If it was empty, `images[start_idx]` would also fail.
     
-    # Determine total dimensions
-    total_width = max_width + max_width2
-    total_height = max_height + max_height2
+    # Determine the size for blank padding images.
+    # Use the first image of the current set if available, otherwise, this logic needs a fallback.
+    # This assumes that if img_set is not empty, img_set[0] is a valid image to get dimensions from.
+    # If img_set is initially empty, this will fail.
+    # However, `images[start_idx]` should be safe if `start_idx < len(images)`.
+    # `min(count, len(images)-start_idx)` ensures we don't go out of bounds for `images`.
+    # If `len(images)-start_idx` is 0 or negative, `img_set` will be empty.
+    
+    # If img_set is empty and we need to pad to 4, we need a default size.
+    # Let's assume if img_set is empty, we can't proceed with grid creation or padding.
+    # The calling code `min(args.pages_per_image, total_pages - start_idx)` should ensure `count` is appropriate.
+    # If `total_pages - start_idx` is 0, `count` passed to `create_grid_image` will be 0, so `img_set` is empty.
+    if not img_set and count > 0: # count is the original requested number for the grid
+        # This case means we were asked to create a grid, but there are no images for this slot.
+        # This might happen if e.g. pdf has 5 pages, and we are creating the second 2x2 grid.
+        # The first grid gets 1,2,3,4. The second grid is for page 5. start_idx=4, count=4.
+        # img_set = images[4:min(4+4, 5)] = images[4:5] -> one image. This will be padded.
+        # What if pdf has 4 pages. start_idx=4, count=4. img_set = images[4:min(8,4)] = images[4:4] -> empty.
+        # In this "empty" case, we should probably return None or an empty image, not try to pad.
+        # The loop for num_combined_images should handle this by not calling create_grid_image.
+        # `math.ceil(total_pages / args.pages_per_image)`
+        # If total_pages = 4, pages_per_image = 4. num_combined_images = 1. Loop i=0. start_idx=0.
+        # If total_pages = 5, pages_per_image = 4. num_combined_images = 2. Loop i=0, start_idx=0. Loop i=1, start_idx=4.
+        #   For i=1, start_idx=4. `count_for_current_call` = `min(4, 5-4)` = `min(4,1)` = 1.
+        #   `img_set` = `images[4:4+1]` which is one image. This will be padded.
+        # So, `img_set` should not be empty if `create_grid_image` is called appropriately.
+        # The `if len(img_set) == 1:` check before the removed blocks would have handled single images.
+        # Now, single images (and 2, 3) will fall through to the padding logic.
+        print("Warning: img_set is empty in create_grid_image. This should ideally not happen.")
+        # Decide on behavior: return None, or an empty image, or raise error.
+        # For now, let's assume it won't be empty based on call patterns.
+        # If it were, img_set[0].size below would fail.
+
+    # Ensure we have exactly 4 images, pad with blank images if necessary
+    if img_set: # Proceed only if there's at least one image to determine padding size
+        pad_img_size = img_set[0].size # Use the first actual image's size for padding
+        while len(img_set) < 4:
+            # Create a blank white image with the same dimensions as the first image of the set
+            blank = Image.new('RGB', pad_img_size, color='white')
+            img_set.append(blank)
+    else: # img_set is empty. We cannot create a 2x2 grid.
+        # This scenario should ideally be caught by the calling logic in main().
+        # If we must return an image, it would be a blank 2x2 grid of some default cell size.
+        # Or return None to signify no image could be created.
+        print("Error: No images provided to create_grid_image. Returning None.")
+        return None # Or handle error appropriately
+
+    # All images in img_set (actual or padded) should ideally be the same size for a uniform grid.
+    # The problem asks to use img_set[0].size for cell dimensions.
+    grid_cell_width = img_set[0].size[0]
+    grid_cell_height = img_set[0].size[1]
+
+    # Determine total dimensions for the 2x2 grid
+    total_width = 2 * grid_cell_width
+    total_height = 2 * grid_cell_height
     
     # Print dimensions
-    print(f"Creating combined image of size {total_width}x{total_height}")
+    print(f"Creating combined 2x2 grid image of size {total_width}x{total_height}")
+    print(f"Grid cell dimensions: {grid_cell_width}x{grid_cell_height}")
     
     # Create a new blank image with the calculated dimensions
     combined_image = Image.new('RGB', (total_width, total_height), color='white')
     
     # Paste images in a 2x2 grid
-    print(f"  Pasting image 1 at position (0, 0)")
+    print(f"  Pasting image 1 (top-left) at position (0, 0)")
     combined_image.paste(img_set[0], (0, 0))
-    print(f"  Pasting image 2 at position ({max_width}, 0)")
-    combined_image.paste(img_set[1], (max_width, 0))
-    print(f"  Pasting image 3 at position (0, {max_height})")
-    combined_image.paste(img_set[2], (0, max_height))
-    print(f"  Pasting image 4 at position ({max_width}, {max_height})")
-    combined_image.paste(img_set[3], (max_width, max_height))
+    print(f"  Pasting image 2 (top-right) at position ({grid_cell_width}, 0)")
+    combined_image.paste(img_set[1], (grid_cell_width, 0))
+    print(f"  Pasting image 3 (bottom-left) at position (0, {grid_cell_height})")
+    combined_image.paste(img_set[2], (0, grid_cell_height))
+    print(f"  Pasting image 4 (bottom-right) at position ({grid_cell_width}, {grid_cell_height})")
+    combined_image.paste(img_set[3], (grid_cell_width, grid_cell_height))
     
     return combined_image
 

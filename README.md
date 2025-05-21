@@ -74,7 +74,7 @@ python main.py /path/to/your/file.pdf --layout horizontal --pages-per-image 2
 Note:
 - `single` layout only supports 1 page per image
 - `horizontal` and `vertical` layouts support up to 2 pages per image
-- `grid` layout requires 4 pages per image
+- `grid` layout requires 4 pages per image (if fewer pages are available for the last grid, blank images will be used to complete the 2x2 grid).
 
 ### Output Files
 
